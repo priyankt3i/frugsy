@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Frugsy</title>
+  <script>
+    // Immediately-invoked function to set the initial theme
+    (function() {
+      try {
+        var persistedTheme = localStorage.getItem('theme');
+        var systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (persistedTheme === 'dark' || (!persistedTheme && systemPrefersDark)) {
+          document.documentElement.classList.add('dark');
+        } else if (persistedTheme === 'light' || (!persistedTheme && !systemPrefersDark)) {
+          // Explicitly remove 'dark' if light mode is chosen or default
+          document.documentElement.classList.remove('dark');
+        }
+        // If no persisted theme and no system preference (unlikely), it defaults to no 'dark' class (light)
+      } catch (e) {
+        // Ignore errors, e.g., if localStorage is disabled
+      }
+    })();
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/heroicons/2.1.3/24/outline/styles.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.1.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.6.0",
+    "leaflet": "https://esm.sh/leaflet@1.9.4"
+  }
+}
+</script>
+  <style>
+    /* Ensure Leaflet map is sized correctly */
+    .leaflet-container {
+      height: 300px;
+      width: 100%;
+      border-radius: 0.5rem; /* Match other rounded corners */
+      /* border: 1px solid #4A5568; /* slate-600 - will be themed */
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    /* Theme Toggle Button (Lightbulb) Styles */
+    #theme-toggle-button-container {
+        position: fixed;
+        top: 1rem; /* 16px */
+        right: 1rem; /* 16px */
+        z-index: 50; /* Ensure it's on top of most content */
+    }
+
+    #theme-toggle-button-container .bulb {
+        position: relative;
+        width: 36px; /* Scaled down from 80px */
+        height: 36px;
+        background: #374151; /* gray-700 for dark mode bulb off */
+        border-radius: 50%;
+        z-index: 2;
+        transition: background 0.3s ease, box-shadow 0.3s ease;
+        cursor: pointer;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    #theme-toggle-button-container .bulb::before { /* Socket */
+        content: '';
+        position: absolute;
+        top: -12.5px; /* Scaled: 80px base -> -50px, so 40px base -> -25px. 36px base -> -22.5px / 1.6 approx = -14px. Fine tune. */
+        left: 10.125px; /* (36 - (35*36/80))/2 = (36-15.75)/2 = 10.125px. Original: 22.5px */
+        width: 15.75px;  /* Scaled: 35px * (36/80) = 15.75px */
+        height: 36px;   /* Scaled: 80px * (36/80) = 36px */
+        background: #374151; /* gray-700 */
+        border-top: 13.5px solid #000; /* Scaled: 30px * (36/80) = 13.5px */
+        border-radius: 4.5px; /* Scaled: 10px * (36/80) = 4.5px */
+        transition: background 0.3s ease;
+    }
+
+    #theme-toggle-button-container .bulb span { /* Common for both spans */
+        display: block;
+        position: absolute;
+        width: 13.5px; /* Scaled: 30px * (36/80) = 13.5px */
+        height: 13.5px;
+        background: transparent;
+        transition: box-shadow 0.3s ease;
+    }
+
+    #theme-toggle-button-container .bulb span:nth-child(1) { /* Filament part 1 */
+        top: -7.2px; /* Scaled: -16px * (36/80) = -7.2px */
+        left: -1.8px; /* Scaled: -4px * (36/80) = -1.8px */
+        border-bottom-right-radius: 18px; /* Scaled: 40px * (36/80) = 18px */
+        transform: rotate(342deg);
+        box-shadow: 9px 9px 0 4.5px #374151; /* Scaled: 20px 20px 0 10px color -> 9px 9px 0 4.5px */
+    }
+
+    #theme-toggle-button-container .bulb span:nth-child(2) { /* Filament part 2 */
+        top: -7.2px; /* Scaled */
+        right: -1.8px; /* Scaled */
+        border-bottom-left-radius: 18px; /* Scaled */
+        transform: rotate(17deg);
+        box-shadow: -9px 9px 0 4.5px #374151; /* Scaled */
+    }
+
+    /* Styles for when theme is LIGHT (bulb ON) - .light-theme-active class on container */
+    #theme-toggle-button-container.light-theme-active .bulb {
+        background: #ffffff; /* white */
+        box-shadow: 0 0 12px #fff, /* Scaled shadows */
+                    0 0 25px #fff,
+                    0 0 37px #fff,
+                    0 0 50px #fff;
+    }
+
+    #theme-toggle-button-container.light-theme-active .bulb::before { /* Socket */
+        background: #f3f4f6; /* gray-100 for light mode socket */
+    }
+
+    #theme-toggle-button-container.light-theme-active .bulb::after { /* Glow */
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 54px; /* Scaled: 120px * (36/80) = 54px */
+        height: 54px;
+        background: #fff;
+        border-radius: 50%;
+        filter: blur(18px); /* Scaled: 40px * (36/80) = 18px */
+    }
+
+    #theme-toggle-button-container.light-theme-active .bulb span:nth-child(1) {
+        box-shadow: 9px 9px 0 4.5px #f3f4f6; /* On state color (gray-100 for filament on light bg) */
+    }
+
+    #theme-toggle-button-container.light-theme-active .bulb span:nth-child(2) {
+        box-shadow: -9px 9px 0 4.5px #f3f4f6; /* On state color */
+    }
+
+  </style>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="transition-colors duration-300">
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

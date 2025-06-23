@@ -1,0 +1,7 @@
+
+{
+  "name": "Frugsy",
+  "description": "Frugsy: Searches for grocery item prices using Gemini AI based on item name and ZIP code. Allows users to save and manage a list of items.",
+  "requestFramePermissions": ["geolocation"],
+  "prompt": ""
+}
