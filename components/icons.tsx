@@ -98,3 +98,41 @@ export const InformationCircleIcon: React.FC<IconProps> = ({ className, ...props
     <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
   </svg>
 );
+
+export const Cog6ToothIcon: React.FC<IconProps> = ({ className, ...props }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"} {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-1.003 1.116-1.003h2.58c.556 0 1.026.461 1.116 1.003l.099.517c.076.405.345.747.697.903l.499.225c.465.21.84.597.997 1.085l.068.223c.09.288.134.587.134.895v2.582c0 .307-.045.606-.134.895l-.068.223c-.157.488-.532.875-.997 1.085l-.499.225c-.352.156-.62.498-.697.903l-.099.517c-.09.542-.56 1.003-1.116 1.003h-2.58c-.556 0-1.026-.461-1.116-1.003l-.099-.517c-.076-.405-.345-.747-.697-.903l-.499-.225c-.465-.21-.84-.597-.997-1.085l-.068-.223c-.09-.288-.134-.587-.134-.895V9.07c0-.307.045.606.134.895l.068-.223c.157-.488.532.875.997-1.085l.499-.225c.352-.156.62-.498.697-.903l.099-.517Zm-1.081 7.058A2.5 2.5 0 1 1 12 5.5a2.5 2.5 0 0 1 2.673 5.498Z" />
+  </svg>
+);
+
+// Settings Page Specific Icons
+export const CubeTransparentIcon: React.FC<IconProps> = ({ className, ...props }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"} {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
+  </svg>
+);
+
+export const UsersIcon: React.FC<IconProps> = ({ className, ...props }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"} {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72m.941 3.196a9.094 9.094 0 01-3.742-.479m0 0a6.062 6.062 0 013.742 1.585m0 0a8.997 8.997 0 016.471-2.408m0 0a8.997 8.997 0 016.471 2.408M15 12a3 3 0 11-6 0 3 3 0 016 0zm6 0a3 3 0 11-6 0 3 3 0 016 0z" />
+  </svg>
+);
+
+export const CloudArrowUpIcon: React.FC<IconProps> = ({ className, ...props }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"} {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.338 0 4.5 4.5 0 01-1.41 8.775H6.75z" />
+  </svg>
+);
+
+export const BeakerIcon: React.FC<IconProps> = ({ className, ...props }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"} {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M14.25 6.083c-.02.096-.03.196-.03.299V11.25c0 .381.104.74.293 1.053l3.69 5.09c.433.595.234 1.465-.41 1.7L10.5 21M7.5 6.75A2.25 2.25 0 009.75 9H12a2.25 2.25 0 002.25-2.25V6.501M7.5 6.75h6.126a3.752 3.752 0 013.107 1.833L18 10.5M7.5 6.75V3.75m0 3V2.25m0 4.5H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125h4.125m0-3.75h4.125M12 21a2.25 2.25 0 002.25-2.25M12 21V11.253m0 0A2.25 2.25 0 019.75 9h0A2.25 2.25 0 0112 6.752M12 21H6.75A2.25 2.25 0 014.5 18.75V11.25c0-2.383 1.488-4.437 3.59-5.285" />
+  </svg>
+);
+
+// ArrowLeftIcon (if not using one from a library)
+export const ArrowLeftIcon: React.FC<IconProps> = ({ className, ...props }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"} {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+  </svg>
+);

@@ -57,12 +57,14 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             value={zip}
             onChange={(e) => setZip(e.target.value)}
             placeholder="e.g., 90210 (Optional if using map/current location)"
-            pattern="\\d{5}"
-            title="Enter a 5-digit US ZIP code"
+            // pattern="\\d{5}" Removed pattern attribute
+            // title="Enter a 5-digit US ZIP code" Removed title attribute
             className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg shadow-sm focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-500 focus:border-emerald-500 dark:focus:border-emerald-500 outline-none transition duration-150 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400"
             // Not strictly required anymore if other location methods are used
             aria-label="ZIP Code"
+            aria-describedby="zip-code-description" // Added for better accessibility context if needed
           />
+           {/* You can add a <p id="zip-code-description"> for more detailed formatting hints if desired */}
         </div>
       </div>
       <button

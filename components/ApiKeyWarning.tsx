@@ -8,7 +8,7 @@ export const ApiKeyWarning: React.FC = () => {
       <div>
         <h4 className="font-bold text-lg mb-1 text-yellow-800 dark:text-yellow-50">API Key Missing</h4>
         <p className="text-sm">
-          The Gemini API key (<code>process.env.API_KEY</code>) is not configured.
+          The Gemini API key (<code>API_KEY</code>) is not configured.
           The core search functionality of this application will not work without it.
         </p>
         <p className="text-sm mt-2">

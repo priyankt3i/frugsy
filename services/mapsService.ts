@@ -1,12 +1,13 @@
-
 import { Coordinates, IdentifiedStore } from '../types';
 
-const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+const Maps_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
-const MAPS_API_BASE_URL = 'https://maps.googleapis.com/maps/api';
+// No need for MAPS_API_BASE_URL if you're using the proxy,
+// as the base will be handled by the proxy.
+// const MAPS_API_BASE_URL = 'https://maps.googleapis.com/maps/api'; // Remove or comment out
 
-if (!GOOGLE_MAPS_API_KEY) {
-  console.warn("Google Maps API Key (process.env.GOOGLE_MAPS_API_KEY) is not set. Maps API calls will fail.");
+if (!Maps_API_KEY) {
+  console.warn("Google Maps API Key (VITE_GOOGLE_MAPS_API_KEY) is not set. Maps API calls will fail.");
 }
 
 interface GeocodingResponse {
@@ -23,11 +24,13 @@ interface GeocodingResponse {
 }
 
 export const geocodeZipCode = async (zipCode: string): Promise<Coordinates> => {
-  if (!GOOGLE_MAPS_API_KEY) {
+  if (!Maps_API_KEY) {
     throw new Error("Google Maps API Key is not configured. Cannot geocode ZIP code.");
   }
-  const url = `${MAPS_API_BASE_URL}/geocode/json?address=${encodeURIComponent(zipCode)}&key=${GOOGLE_MAPS_API_KEY}`;
-  
+  // CORRECTED URL for Geocoding
+  // Frontend requests: /maps/maps/api/geocode/json
+  // Proxy removes first /maps, forwards: https://maps.googleapis.com/maps/api/geocode/json
+  const url = `/maps/maps/api/geocode/json?address=${encodeURIComponent(zipCode)}&key=${Maps_API_KEY}`;
   try {
     const response = await fetch(url);
     const data: GeocodingResponse = await response.json();
@@ -51,7 +54,7 @@ interface PlacesNearbyResponse {
     formatted_address?: string; // More complete address
     place_id?: string;
     geometry?: {
-        location: Coordinates;
+      location: Coordinates;
     };
   }[];
   status: string;
@@ -63,18 +66,17 @@ export const findNearbyGroceryStoresFromMaps = async (
   coordinates: Coordinates,
   radiusInMiles: number
 ): Promise<IdentifiedStore[]> => {
-  if (!GOOGLE_MAPS_API_KEY) {
+  if (!Maps_API_KEY) {
     throw new Error("Google Maps API Key is not configured. Cannot find nearby stores.");
   }
 
   const radiusInMeters = radiusInMiles * 1609.34; // Convert miles to meters
 
-  // Prioritize 'grocery_or_supermarket', 'supermarket', 'food', 'shopping_mall' (can contain supermarkets)
-  // 'convenience_store' can be a fallback but might not always have full grocery selections.
-  // We make one call and let Google rank by prominence within the types.
-  const types = 'grocery_or_supermarket|supermarket'; 
-  const url = `${MAPS_API_BASE_URL}/place/nearbysearch/json?location=${coordinates.lat},${coordinates.lng}&radius=${radiusInMeters}&type=${types}&key=${GOOGLE_MAPS_API_KEY}`;
-  
+  const types = 'grocery_or_supermarket|supermarket';
+  // CORRECTED URL for Places Nearby Search
+  // Frontend requests: /maps/maps/api/place/nearbysearch/json
+  // Proxy removes first /maps, forwards: https://maps.googleapis.com/maps/api/place/nearbysearch/json
+  const url = `/maps/maps/api/place/nearbysearch/json?location=${coordinates.lat},${coordinates.lng}&radius=${radiusInMeters}&type=${types}&key=${Maps_API_KEY}`;
   try {
     const response = await fetch(url);
     const data: PlacesNearbyResponse = await response.json();
@@ -84,17 +86,14 @@ export const findNearbyGroceryStoresFromMaps = async (
       if (data.results) {
         data.results.forEach(place => {
           if (place.name) {
-            // Prefer formatted_address, then vicinity.
             let address = place.formatted_address || place.vicinity;
             stores.push({
               storeName: place.name,
-              storeAddress: address || undefined, // Ensure it's undefined if null/empty
+              storeAddress: address || undefined,
             });
           }
         });
       }
-      // Note: For simplicity, not handling pagination (next_page_token) here. 
-      // This will return up to 20 results by default.
       return stores;
     } else {
       console.error('Google Maps Places API Error:', data.status, data.error_message);

@@ -1,14 +1,19 @@
-
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
-import { RawGroceryItem, GroundingSource, IdentifiedStore } from '../types'; // Removed Coordinates as it's not used here anymore
+import { RawGroceryItem, GroundingSource, IdentifiedStore } from '../types';
 import { GEMINI_MODEL_NAME } from '../constants';
 
-const API_KEY = process.env.API_KEY;
+// 1. Access the API key using import.meta.env
+// Make sure to add the VITE_ prefix as per Vite's convention
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 if (!API_KEY) {
-  console.error("Gemini API Key (process.env.API_KEY) is not set. API calls will fail if process.env.API_KEY is not actually available in the execution environment.");
+  // Update the warning message to reflect the correct variable name
+  console.error("Gemini API Key (import.meta.env.VITE_GEMINI_API_KEY) is not set. API calls will fail.");
 }
-const ai = new GoogleGenAI({ apiKey: API_KEY || "MISSING_API_KEY_RUNTIME" });
+
+// Ensure the apiKey is always a string, even if it's undefined
+// The GoogleGenAI constructor might expect a string, so provide a fallback.
+const ai = new GoogleGenAI({ apiKey: API_KEY || "MISSING_VITE_API_KEY_RUNTIME" });
 
 interface GroundingChunk {
   web?: {
@@ -39,12 +44,12 @@ export const fetchGroceryPricesForItemInStore = async (
   store: IdentifiedStore,
   searchRadiusForContext: number // Original user radius, for context to AI
 ): Promise<{ item: RawGroceryItem | null, sources: GroundingSource[] }> => {
+  // 2. Use the new API_KEY variable consistently
   if (!API_KEY) {
     throw new Error("Gemini API Key is not configured. Cannot fetch item price.");
   }
-  
+
   const storeAddressContext = store.storeAddress ? ` (around ${store.storeAddress})` : '';
-  // The prompt remains largely the same, focusing on the specific store.
   const prompt = `
     You are an AI assistant. The user is looking for the item "${itemName}".
     Focus your search specifically on the store: "${store.storeName}"${storeAddressContext}.
@@ -57,7 +62,7 @@ export const fetchGroceryPricesForItemInStore = async (
     1.  **If the item AND its price are found at THIS specific store:** Respond ONLY with a single JSON object.
         The JSON object must have this structure:
         {
-          "fullItemName": string, 
+          "fullItemName": string,
           "storeName": "${store.storeName}",
           "storeAddress": "${store.storeAddress || ''}",
           "price": number,
@@ -76,14 +81,12 @@ export const fetchGroceryPricesForItemInStore = async (
     Your entire response MUST be either the single JSON object (if found) OR the word "null" (if not found/priced). No other text or formatting around these two allowed outputs.
   `;
 
-  // console.log(`Gemini API Request Prompt (Item Search for ${store.storeName}):`, prompt); // Keep for debugging if needed
-
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: GEMINI_MODEL_NAME,
       contents: prompt,
       config: {
-        temperature: 0.1, 
+        temperature: 0.1,
         tools: [{ googleSearch: {} }],
       },
     });
@@ -99,13 +102,13 @@ export const fetchGroceryPricesForItemInStore = async (
 
     if (typeof responseText === 'string' && responseText.trim() !== "") {
       let jsonStr = responseText.trim();
-      const fenceRegex = /^```(?:json)?\s*\n?(.*?)\n?\s*```$/s; 
+      const fenceRegex = /^```(?:json)?\s*\n?(.*?)\n?\s*```$/s;
       const match = jsonStr.match(fenceRegex);
       if (match && match[1]) {
         jsonStr = match[1].trim();
       }
 
-      if (jsonStr === "null") { 
+      if (jsonStr === "null") {
         foundItem = null;
       } else {
         try {
@@ -113,10 +116,10 @@ export const fetchGroceryPricesForItemInStore = async (
           if (parsedData && typeof parsedData.fullItemName === 'string' && typeof parsedData.price === 'number') {
             foundItem = {
               fullItemName: parsedData.fullItemName,
-              storeName: parsedData.storeName || store.storeName, 
+              storeName: parsedData.storeName || store.storeName,
               storeAddress: parsedData.storeAddress || store.storeAddress,
               price: parsedData.price,
-              currency: parsedData.currency || "USD", 
+              currency: parsedData.currency || "USD",
               productUrl: (typeof parsedData.productUrl === 'string' && parsedData.productUrl.trim() !== "" && parsedData.productUrl.toLowerCase() !== "null") ? parsedData.productUrl : undefined,
               imageUrl: (typeof parsedData.imageUrl === 'string' && parsedData.imageUrl.trim() !== "" && parsedData.imageUrl.toLowerCase() !== "null") ? parsedData.imageUrl : undefined,
               lastUpdated: (typeof parsedData.lastUpdated === 'string' && parsedData.lastUpdated.trim() !== "" && parsedData.lastUpdated.toLowerCase() !== "null") ? parsedData.lastUpdated : undefined,
@@ -136,13 +139,15 @@ export const fetchGroceryPricesForItemInStore = async (
 
   } catch (error) {
     console.error(`Error fetching item price for ${store.storeName} from Gemini API:`, error);
-    if (error instanceof Error && error.message.includes("API key not valid")) throw new Error("Invalid API Key.");
-    return { item: null, sources: [] }; 
+    // 3. Update error message if it still refers to API_KEY
+    if (error instanceof Error && error.message.includes("API key not valid")) throw new Error("Invalid Gemini API Key. Ensure VITE_GEMINI_API_KEY is correctly set.");
+    return { item: null, sources: [] };
   }
 };
 
 
 export const generateProductImage = async (itemName: string): Promise<string | null> => {
+  // 4. Use the new API_KEY variable consistently
   if (!API_KEY) {
     console.warn("Gemini API Key is not configured. Cannot generate product image.");
     return null;

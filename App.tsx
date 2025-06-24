@@ -1,4 +1,5 @@
 
+/// <reference types="vite/client" />
 import React, { useState, useEffect, useCallback } from 'react';
 import { SearchBar } from './components/SearchBar';
 import { GroceryItemCard } from './components/GroceryItemCard';
@@ -7,12 +8,24 @@ import { ApiKeyWarning } from './components/ApiKeyWarning';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { MapInput } from './components/MapInput';
 import { ThemeToggleButton } from './components/ThemeToggleButton';
+import { SettingsButton } from './components/SettingsButton'; // New
+import { SettingsPage } from './components/SettingsPage'; // New
 import { GroceryItem, RawGroceryItem, GroundingSource, Coordinates, StoreItemGroup, IdentifiedStore } from './types';
 import { fetchGroceryPricesForItemInStore, generateProductImage } from './services/geminiService';
 import { geocodeZipCode, findNearbyGroceryStoresFromMaps } from './services/mapsService';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { MagnifyingGlassIcon, BookmarkIcon, XCircleIcon, ShoppingCartIcon, LinkIcon, InformationCircleIcon } from './components/icons';
 import { DEFAULT_SEARCH_RADIUS } from './constants';
+
+// Add this to extend ImportMeta for Vite env vars
+interface ImportMetaEnv {
+  readonly VITE_GEMINI_API_KEY?: string;
+  readonly VITE_GOOGLE_MAPS_API_KEY?: string;
+  // add other env vars as needed
+}
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}
 
 const App: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -33,13 +46,14 @@ const App: React.FC = () => {
   
   const [currentSearchDisplayInfo, setCurrentSearchDisplayInfo] = useState<string>('');
   const [loadingStep, setLoadingStep] = useState<string>('');
+  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false); // New state for settings page
 
   useEffect(() => {
-    if (!process.env.API_KEY) { 
+    if (!import.meta.env.VITE_GEMINI_API_KEY) { 
       setIsGeminiApiKeyMissing(true);
       console.warn("Gemini API_KEY environment variable is not set.");
     }
-    if (!process.env.GOOGLE_MAPS_API_KEY) {
+    if (!import.meta.env.VITE_GOOGLE_MAPS_API_KEY) {
       setIsMapsApiKeyMissing(true);
       console.warn("GOOGLE_MAPS_API_KEY environment variable is not set.");
     }
@@ -48,7 +62,7 @@ const App: React.FC = () => {
   const uniqSources = (sources: GroundingSource[]): GroundingSource[] => {
     const seen = new Set<string>();
     return sources.filter(source => {
-      if (!source || !source.uri) return false; // Ensure source and uri exist
+      if (!source || !source.uri) return false; 
       const duplicate = seen.has(source.uri);
       seen.add(source.uri);
       return !duplicate;
@@ -67,11 +81,9 @@ const App: React.FC = () => {
             lng: position.coords.longitude,
           };
           setUserLiveCoordinates(coords);
-          setSelectedMapLocation(coords); // Also set it on the map
+          setSelectedMapLocation(coords); 
           setIsGeolocating(false);
           setLoadingStep('');
-          // Optionally, if ZIP is empty, you could try reverse geocoding here to fill it,
-          // but for now, we'll just use the coords.
         },
         (geoError) => {
           setError(`Geolocation error: ${geoError.message}. Please ensure location services are enabled or try entering a ZIP code.`);
@@ -122,8 +134,6 @@ const App: React.FC = () => {
       setError("Please enter an item name.");
       return;
     }
-    // ZIP code is no longer strictly required if map location or geolocation is used
-    // However, if provided, it should be valid for geocoding fallback
     if (zip.trim() && !/^\d{5}$/.test(zip.trim())) {
         setError("If providing a ZIP code, please enter a valid 5-digit US ZIP code.");
         return;
@@ -133,22 +143,19 @@ const App: React.FC = () => {
         return;
     }
 
-
     setIsLoading(true);
     setLoadingStep('Initializing search...');
     setError(null);
     setSearchResults([]);
     setSearchSources([]);
     let accumulatedSources: GroundingSource[] = [];
-    
     let searchLocationDescriptor = "";
     
     setSearchTerm(itemQuery); 
-    setZipCode(zip); // Store it even if not primarily used, for display or re-search
+    setZipCode(zip); 
     setSearchRadius(radius);
 
     try {
-      // Step 0: Determine Coordinates
       const centralCoordinates = await getSearchCoordinates(zip, selectedMapLocation, userLiveCoordinates);
       searchLocationDescriptor = `near (Lat: ${centralCoordinates.lat.toFixed(2)}, Lng: ${centralCoordinates.lng.toFixed(2)})`;
       if (zip.trim()) searchLocationDescriptor += ` (orig. ZIP: ${zip})`;
@@ -156,7 +163,6 @@ const App: React.FC = () => {
       let displayInfo = `"${itemQuery}" ${searchLocationDescriptor} (radius: ${radius} miles)`;
       setCurrentSearchDisplayInfo(displayInfo);
 
-      // Step 1: Fetch Nearby Grocery Stores using Google Maps API
       setLoadingStep('Finding nearby stores via Google Maps...');
       const identifiedStores = await findNearbyGroceryStoresFromMaps(centralCoordinates, radius);
 
@@ -169,7 +175,6 @@ const App: React.FC = () => {
       
       setLoadingStep(`Found ${identifiedStores.length} store(s) via Google Maps. Fetching item prices using Gemini...`);
 
-      // Step 2: Fetch Item Prices for Each Store Concurrently using Gemini
       const itemPricePromises = identifiedStores.map(store =>
         fetchGroceryPricesForItemInStore(itemQuery, store, radius)
           .then(result => ({ ...result, storeContext: store })) 
@@ -211,18 +216,16 @@ const App: React.FC = () => {
 
       setLoadingStep(`Found ${foundRawItemsWithContext.length} item(s) via Gemini. Generating images...`);
 
-      // Step 3: Generate Images Concurrently
       const imageGenerationPromises = foundRawItemsWithContext.map(rawItem => 
         generateProductImage(rawItem.fullItemName)
-          .then(generatedImageUrl => ({ ...rawItem, generatedImageUrl }))
+          .then(generatedImageUrl => ({ ...rawItem, generatedImageUrl: generatedImageUrl ?? undefined }))
           .catch(imgErr => {
             console.error(`Failed to generate image for ${rawItem.fullItemName}:`, imgErr);
-            return { ...rawItem, generatedImageUrl: null }; 
+            return { ...rawItem, generatedImageUrl: undefined }; 
           })
       );
-      const itemsWithImageAttempts: (RawGroceryItem & { storeContext: IdentifiedStore; generatedImageUrl: string | null })[] = await Promise.all(imageGenerationPromises);
+      const itemsWithImageAttempts: (RawGroceryItem & { storeContext: IdentifiedStore; generatedImageUrl?: string })[] = await Promise.all(imageGenerationPromises);
 
-      // Step 4: Process and Group Items
       const processedItems: GroceryItem[] = itemsWithImageAttempts.map((itemWithImg, index) => ({
         ...itemWithImg,
         id: `${itemWithImg.storeContext.storeName}-${itemWithImg.fullItemName}-${itemWithImg.price}-${index}-${Date.now()}`
@@ -266,7 +269,7 @@ const App: React.FC = () => {
     } finally {
       setIsLoading(false);
       setLoadingStep('');
-      setIsGeolocating(false); // Ensure geolocation spinner stops
+      setIsGeolocating(false); 
     }
   }, [isGeminiApiKeyMissing, isMapsApiKeyMissing, selectedMapLocation, userLiveCoordinates]);
 
@@ -286,152 +289,165 @@ const App: React.FC = () => {
 
   const handleMapLocationSelect = (coords: Coordinates) => {
     setSelectedMapLocation(coords);
-    setUserLiveCoordinates(null); // Clear live location if map is used
+    setUserLiveCoordinates(null); 
   };
 
   const handleClearMapLocation = () => {
     setSelectedMapLocation(null);
   };
 
+  const toggleSettingsPage = () => {
+    setIsSettingsOpen(prev => !prev);
+  };
+
+
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-gradient-to-br dark:from-slate-900 dark:to-slate-800 text-slate-900 dark:text-slate-100 p-4 md:p-8 font-sans transition-colors duration-300">
       <ThemeToggleButton />
-      <header className="text-center mb-10 pt-8">
-        <div className="flex items-center justify-center space-x-3 mb-2">
-          <ShoppingCartIcon className="w-12 h-12 text-emerald-600 dark:text-emerald-400" />
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-600 to-cyan-600 dark:from-emerald-400 dark:to-cyan-400">
-            Frugsy
-          </h1>
-        </div>
-        <p className="text-slate-600 dark:text-slate-400 text-lg">Find the best deals on your groceries, powered by AI and Maps.</p>
-      </header>
+      <SettingsButton onClick={toggleSettingsPage} /> 
 
-      {isGeminiApiKeyMissing && <ApiKeyWarning />}
-      {isMapsApiKeyMissing && (
-         <div className="bg-orange-100 dark:bg-orange-700 border-l-4 border-orange-500 dark:border-orange-800 text-orange-700 dark:text-orange-100 p-6 rounded-lg shadow-lg mb-8 flex items-start space-x-4">
-            <InformationCircleIcon className="w-8 h-8 text-orange-500 dark:text-orange-100 flex-shrink-0 mt-1" />
-            <div>
-                <h4 className="font-bold text-lg mb-1 text-orange-800 dark:text-orange-50">Google Maps API Key Missing</h4>
-                <p className="text-sm">
-                The Google Maps API key (<code>process.env.GOOGLE_MAPS_API_KEY</code>) is not configured.
-                Store discovery and ZIP code geocoding will not work without it.
-                </p>
-                <p className="text-sm mt-2">
-                Please ensure this API key is correctly set up in your environment.
-                </p>
+      {isSettingsOpen ? (
+        <SettingsPage onClose={toggleSettingsPage} />
+      ) : (
+        <>
+          <header className="text-center mb-10 pt-8">
+            <div className="flex items-center justify-center space-x-3 mb-2">
+              <ShoppingCartIcon className="w-12 h-12 text-emerald-600 dark:text-emerald-400" />
+              <h1 className="text-4xl md:text-5xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-600 to-cyan-600 dark:from-emerald-400 dark:to-cyan-400">
+                Frugsy
+              </h1>
             </div>
-        </div>
-      )}
+            <p className="text-slate-600 dark:text-slate-400 text-lg">Find the best deals on your groceries, powered by AI and Maps.</p>
+          </header>
 
-
-      <main className="max-w-6xl mx-auto">
-        <div className="bg-white dark:bg-slate-800 shadow-2xl rounded-xl p-6 md:p-8 mb-10">
-          <SearchBar 
-            onSearch={handleSearch} 
-            isLoading={isLoading || isGeolocating}
-            initialRadius={searchRadius}
-            initialZipCode={zipCode}
-            initialSearchTerm={searchTerm}
-            onUseMyLocation={handleUseMyLocation}
-          />
-          <MapInput 
-            selectedLocation={selectedMapLocation}
-            onLocationSelect={handleMapLocationSelect}
-            onClearLocation={handleClearMapLocation}
-          />
-        </div>
-
-        {error && (
-          <div className="bg-red-100 dark:bg-red-700 border border-red-300 dark:border-red-600 text-red-700 dark:text-red-100 p-4 rounded-lg mb-8 shadow-lg flex items-center space-x-3" role="alert">
-            <XCircleIcon className="w-6 h-6" />
-            <p><span className="font-semibold">Error:</span> {error}</p>
-          </div>
-        )}
-
-        {(isLoading || isGeolocating) && <LoadingSpinner />}
-        {(isLoading || isGeolocating) && loadingStep && <p className="text-center text-slate-600 dark:text-slate-400 -mt-6 mb-4">{loadingStep}</p>}
-
-
-        {!isLoading && !isGeolocating && currentSearchDisplayInfo && searchResults.length === 0 && !error && (
-            <div className="text-center py-10 text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 rounded-xl shadow-lg">
-                <p className="text-xl">No specific items found for {currentSearchDisplayInfo}.</p>
-                <p className="text-slate-500 dark:text-slate-500 mt-1">Try refining your search terms, adjusting the radius/location, or check back later. Review sources below if available.</p>
-            </div>
-        )}
-
-        {!isLoading && !isGeolocating && searchResults.length > 0 && (
-          <section className="mb-12" aria-labelledby="search-results-heading">
-            <h2 id="search-results-heading" className="text-3xl font-semibold mb-6 text-slate-800 dark:text-slate-200 flex items-center">
-              <MagnifyingGlassIcon className="w-8 h-8 mr-3 text-emerald-600 dark:text-emerald-400" />
-              Search Results for {currentSearchDisplayInfo}
-            </h2>
-            <div className="space-y-8">
-              {searchResults.map((storeGroup, index) => (
-                <StoreGroupCard
-                  key={`${storeGroup.storeName}-${index}`} 
-                  storeGroup={storeGroup}
-                  onSaveItem={handleSaveItem}
-                  onRemoveItem={handleRemoveItem} 
-                  isItemSaved={isItemSaved}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-        
-        {!isLoading && !isGeolocating && searchSources.length > 0 && (
-            <div className="mt-8 pt-6 border-t border-slate-300 dark:border-slate-700">
-            <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center">
-                <LinkIcon className="w-5 h-5 mr-2 text-cyan-600 dark:text-cyan-400" />
-                Data Sources Consulted (from Google Search for item details)
-            </h3>
-            <ul className="list-disc list-inside space-y-1 text-sm text-slate-600 dark:text-slate-400 max-h-48 overflow-y-auto">
-                {searchSources.map((source, idx) => (
-                <li key={idx}>
-                    <a 
-                    href={source.uri} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    title={source.title}
-                    className="hover:text-cyan-600 dark:hover:text-cyan-400 underline transition-colors"
-                    >
-                    {source.title || source.uri}
-                    </a>
-                </li>
-                ))}
-            </ul>
-            </div>
-        )}
-
-        <section aria-labelledby="saved-items-heading" className="mt-12">
-          <h2 id="saved-items-heading" className="text-3xl font-semibold mb-6 text-slate-800 dark:text-slate-200 flex items-center">
-            <BookmarkIcon className="w-8 h-8 mr-3 text-cyan-600 dark:text-cyan-400" />
-            My Saved Items ({savedItems.length})
-          </h2>
-          {savedItems.length === 0 ? (
-            <div className="text-center py-10 bg-white dark:bg-slate-800 rounded-xl shadow-lg">
-              <p className="text-slate-600 dark:text-slate-400 text-lg">You haven't saved any items yet.</p>
-              <p className="text-slate-500 dark:text-slate-500 mt-2">Use the search to find items and save them for later!</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {savedItems.map(item => (
-                <GroceryItemCard
-                  key={item.id}
-                  item={item}
-                  onSave={handleSaveItem}
-                  onRemove={handleRemoveItem}
-                  isSaved={true}
-                  showSaveButton={false} 
-                />
-              ))}
+          {isGeminiApiKeyMissing && <ApiKeyWarning />}
+          {isMapsApiKeyMissing && (
+            <div className="bg-orange-100 dark:bg-orange-700 border-l-4 border-orange-500 dark:border-orange-800 text-orange-700 dark:text-orange-100 p-6 rounded-lg shadow-lg mb-8 flex items-start space-x-4">
+                <InformationCircleIcon className="w-8 h-8 text-orange-500 dark:text-orange-100 flex-shrink-0 mt-1" />
+                <div>
+                    <h4 className="font-bold text-lg mb-1 text-orange-800 dark:text-orange-50">Google Maps API Key Missing</h4>
+                    <p className="text-sm">
+                    The Google Maps API key (<code>GOOGLE_MAPS_API_KEY</code>) is not configured.
+                    Store discovery and ZIP code geocoding will not work without it.
+                    </p>
+                    <p className="text-sm mt-2">
+                    Please ensure this API key is correctly set up in your environment.
+                    </p>
+                </div>
             </div>
           )}
-        </section>
-      </main>
-      <footer className="text-center mt-12 py-6 border-t border-slate-300 dark:border-slate-700">
-        <p className="text-slate-500 dark:text-slate-500 text-sm">Frugsy by Priyank &copy; {new Date().getFullYear()}</p>
-      </footer>
+
+
+          <main className="max-w-6xl mx-auto">
+            <div className="bg-white dark:bg-slate-800 shadow-2xl rounded-xl p-6 md:p-8 mb-10">
+              <SearchBar 
+                onSearch={handleSearch} 
+                isLoading={isLoading || isGeolocating}
+                initialRadius={searchRadius}
+                initialZipCode={zipCode}
+                initialSearchTerm={searchTerm}
+                onUseMyLocation={handleUseMyLocation}
+              />
+              <MapInput 
+                selectedLocation={selectedMapLocation}
+                onLocationSelect={handleMapLocationSelect}
+                onClearLocation={handleClearMapLocation}
+              />
+            </div>
+
+            {error && (
+              <div className="bg-red-100 dark:bg-red-700 border border-red-300 dark:border-red-600 text-red-700 dark:text-red-100 p-4 rounded-lg mb-8 shadow-lg flex items-center space-x-3" role="alert">
+                <XCircleIcon className="w-6 h-6" />
+                <p><span className="font-semibold">Error:</span> {error}</p>
+              </div>
+            )}
+
+            {(isLoading || isGeolocating) && <LoadingSpinner />}
+            {(isLoading || isGeolocating) && loadingStep && <p className="text-center text-slate-600 dark:text-slate-400 -mt-6 mb-4">{loadingStep}</p>}
+
+
+            {!isLoading && !isGeolocating && currentSearchDisplayInfo && searchResults.length === 0 && !error && (
+                <div className="text-center py-10 text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 rounded-xl shadow-lg">
+                    <p className="text-xl">No specific items found for {currentSearchDisplayInfo}.</p>
+                    <p className="text-slate-500 dark:text-slate-500 mt-1">Try refining your search terms, adjusting the radius/location, or check back later. Review sources below if available.</p>
+                </div>
+            )}
+
+            {!isLoading && !isGeolocating && searchResults.length > 0 && (
+              <section className="mb-12" aria-labelledby="search-results-heading">
+                <h2 id="search-results-heading" className="text-3xl font-semibold mb-6 text-slate-800 dark:text-slate-200 flex items-center">
+                  <MagnifyingGlassIcon className="w-8 h-8 mr-3 text-emerald-600 dark:text-emerald-400" />
+                  Search Results for {currentSearchDisplayInfo}
+                </h2>
+                <div className="space-y-8">
+                  {searchResults.map((storeGroup, index) => (
+                    <StoreGroupCard
+                      key={`${storeGroup.storeName}-${index}`} 
+                      storeGroup={storeGroup}
+                      onSaveItem={handleSaveItem}
+                      onRemoveItem={handleRemoveItem} 
+                      isItemSaved={isItemSaved}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+            
+            {!isLoading && !isGeolocating && searchSources.length > 0 && (
+                <div className="mt-8 pt-6 border-t border-slate-300 dark:border-slate-700">
+                <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center">
+                    <LinkIcon className="w-5 h-5 mr-2 text-cyan-600 dark:text-cyan-400" />
+                    Data Sources Consulted (from Google Search for item details)
+                </h3>
+                <ul className="list-disc list-inside space-y-1 text-sm text-slate-600 dark:text-slate-400 max-h-48 overflow-y-auto">
+                    {searchSources.map((source, idx) => (
+                    <li key={idx}>
+                        <a 
+                        href={source.uri} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        title={source.title}
+                        className="hover:text-cyan-600 dark:hover:text-cyan-400 underline transition-colors"
+                        >
+                        {source.title || source.uri}
+                        </a>
+                    </li>
+                    ))}
+                </ul>
+                </div>
+            )}
+
+            <section aria-labelledby="saved-items-heading" className="mt-12">
+              <h2 id="saved-items-heading" className="text-3xl font-semibold mb-6 text-slate-800 dark:text-slate-200 flex items-center">
+                <BookmarkIcon className="w-8 h-8 mr-3 text-cyan-600 dark:text-cyan-400" />
+                My Saved Items ({savedItems.length})
+              </h2>
+              {savedItems.length === 0 ? (
+                <div className="text-center py-10 bg-white dark:bg-slate-800 rounded-xl shadow-lg">
+                  <p className="text-slate-600 dark:text-slate-400 text-lg">You haven't saved any items yet.</p>
+                  <p className="text-slate-500 dark:text-slate-500 mt-2">Use the search to find items and save them for later!</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {savedItems.map(item => (
+                    <GroceryItemCard
+                      key={item.id}
+                      item={item}
+                      onSave={handleSaveItem}
+                      onRemove={handleRemoveItem}
+                      isSaved={true}
+                      showSaveButton={false} 
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          </main>
+          <footer className="text-center mt-12 py-6 border-t border-slate-300 dark:border-slate-700">
+            <p className="text-slate-500 dark:text-slate-500 text-sm">Frugsy by Priyank &copy; {new Date().getFullYear()}</p>
+          </footer>
+        </>
+      )}
     </div>
   );
 };
