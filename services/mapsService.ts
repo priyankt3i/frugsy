@@ -1,13 +1,12 @@
 import { Coordinates, IdentifiedStore } from '../types';
 
-const Maps_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-
-// No need for MAPS_API_BASE_URL if you're using the proxy,
-// as the base will be handled by the proxy.
-// const MAPS_API_BASE_URL = 'https://maps.googleapis.com/maps/api'; // Remove or comment out
+// Assuming you have ONE API key for both, or two separate ones.
+// If you followed the advice to have a separate Geocoding key,
+// then Maps_API_KEY below will be your Places API (New) key.
+const Maps_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY; // This should be the API key with HTTP referrer restrictions
 
 if (!Maps_API_KEY) {
-  console.warn("Google Maps API Key (VITE_GOOGLE_MAPS_API_KEY) is not set. Maps API calls will fail.");
+  console.warn("Google Maps API Key (VITE_Maps_API_KEY) is not set. Maps API calls will fail.");
 }
 
 interface GeocodingResponse {
@@ -24,13 +23,10 @@ interface GeocodingResponse {
 }
 
 export const geocodeZipCode = async (zipCode: string): Promise<Coordinates> => {
-  if (!Maps_API_KEY) {
+  if (!Maps_API_KEY) { // If you used a separate key for geocoding, use that env var here
     throw new Error("Google Maps API Key is not configured. Cannot geocode ZIP code.");
   }
-  // CORRECTED URL for Geocoding
-  // Frontend requests: /maps/maps/api/geocode/json
-  // Proxy removes first /maps, forwards: https://maps.googleapis.com/maps/api/geocode/json
-  const url = `/maps/maps/api/geocode/json?address=${encodeURIComponent(zipCode)}&key=${Maps_API_KEY}`;
+  const url = `/maps/maps/api/geocode/json?address=${encodeURIComponent(zipCode)}&key=${Maps_API_KEY}`; // Use the appropriate key
   try {
     const response = await fetch(url);
     const data: GeocodingResponse = await response.json();
@@ -47,19 +43,17 @@ export const geocodeZipCode = async (zipCode: string): Promise<Coordinates> => {
   }
 };
 
-interface PlacesNearbyResponse {
-  results: {
-    name?: string;
-    vicinity?: string; // This often contains a simplified address or street name
-    formatted_address?: string; // More complete address
-    place_id?: string;
-    geometry?: {
-      location: Coordinates;
-    };
+// *** NEW INTERFACE FOR PLACES API (NEW) RESPONSE ***
+interface PlacesNearbyResponseNew {
+  places: {
+    displayName?: { text: string; languageCode: string };
+    formattedAddress?: string;
+    location?: Coordinates;
+    // Add other fields you fetch with X-Goog-FieldMask here
   }[];
-  status: string;
-  error_message?: string;
-  next_page_token?: string;
+  // The new API doesn't usually return 'status' or 'error_message' in the JSON body for errors,
+  // rather it uses HTTP status codes and an error object if the request was malformed or denied.
+  // For successful responses, it just returns 'places'.
 }
 
 export const findNearbyGroceryStoresFromMaps = async (
@@ -70,37 +64,67 @@ export const findNearbyGroceryStoresFromMaps = async (
     throw new Error("Google Maps API Key is not configured. Cannot find nearby stores.");
   }
 
-  const radiusInMeters = radiusInMiles * 1609.34; // Convert miles to meters
+  const radiusInMeters = radiusInMiles * 1609.34;
 
-  const types = 'grocery_or_supermarket|supermarket';
-  // CORRECTED URL for Places Nearby Search
-  // Frontend requests: /maps/maps/api/place/nearbysearch/json
-  // Proxy removes first /maps, forwards: https://maps.googleapis.com/maps/api/place/nearbysearch/json
-  const url = `/maps/maps/api/place/nearbysearch/json?location=${coordinates.lat},${coordinates.lng}&radius=${radiusInMeters}&type=${types}&key=${Maps_API_KEY}`;
+  // *** NEW ENDPOINT for Places API (New) ***
+  // Use the new proxy prefix `/placesapi`
+  const newApiUrl = `/placesapi/v1/places:searchNearby`;
+
+  // Request body for POST request for Places API (New)
+  const requestBody = {
+    includedTypes: ['grocery_store', 'supermarket'], // Use new types from Table A if needed
+    locationRestriction: {
+      circle: {
+        center: {
+          latitude: coordinates.lat,
+          longitude: coordinates.lng,
+        },
+        radius: radiusInMeters,
+      },
+    },
+    // Optional parameters like maxResultCount: 20
+  };
+
   try {
-    const response = await fetch(url);
-    const data: PlacesNearbyResponse = await response.json();
+    const response = await fetch(newApiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': Maps_API_KEY, // Use your Places API (New) key
+        // CRITICAL: FieldMask required for Places API (New)
+        'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location', // Request only the fields you need
+      },
+      body: JSON.stringify(requestBody),
+    });
 
-    if (data.status === 'OK' || data.status === 'ZERO_RESULTS') {
+    if (!response.ok) { // Check for HTTP errors (e.g., 400, 403, 404, 500)
+      const errorData = await response.json(); // Attempt to parse error as JSON
+      console.error('Google Maps Places API (New) HTTP Error:', response.status, errorData);
+      throw new Error(`Google Maps Places API (New) request failed: ${errorData.error?.message || response.statusText}`);
+    }
+
+    // Now parse the successful JSON response
+    const data: PlacesNearbyResponseNew = await response.json();
+
+    if (data.places) { // The new API returns an array named 'places'
       const stores: IdentifiedStore[] = [];
-      if (data.results) {
-        data.results.forEach(place => {
-          if (place.name) {
-            let address = place.formatted_address || place.vicinity;
-            stores.push({
-              storeName: place.name,
-              storeAddress: address || undefined,
-            });
-          }
-        });
-      }
+      data.places.forEach(place => {
+        if (place.displayName?.text) { // Access name via displayName.text
+          stores.push({
+            storeName: place.displayName.text,
+            storeAddress: place.formattedAddress || undefined,
+            // You might want to add coordinates to IdentifiedStore
+            // location: place.location // if you add it to IdentifiedStore type
+          });
+        }
+      });
       return stores;
     } else {
-      console.error('Google Maps Places API Error:', data.status, data.error_message);
-      throw new Error(`Failed to find nearby stores via Google Maps. Status: ${data.status}. ${data.error_message || ''}`);
+      console.error('Google Maps Places API (New) Error: No places data in response.', data);
+      throw new Error('No places data received from Google Maps (New) API.');
     }
   } catch (error) {
-    console.error('Network or parsing error during Places API call:', error);
-    throw new Error('Network error or invalid response while finding nearby stores.');
+    console.error('Network or parsing error during Places API (New) call:', error);
+    throw new Error('Network error or invalid response while finding nearby stores (Places API New).');
   }
 };

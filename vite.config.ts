@@ -17,6 +17,12 @@ export default defineConfig(({ mode }) => {
             changeOrigin: true,
             rewrite: (path) => path.replace(/^\/maps/, ''),
           },
+            // *** NEW PROXY ENTRY FOR PLACES API (New) ***
+          '/placesapi': { // A distinct prefix for the new Places API
+            target: 'https://places.googleapis.com',
+            changeOrigin: true,
+            rewrite: (path) => path.replace(/^\/placesapi/, ''),
+          },
         },
       },
     };
